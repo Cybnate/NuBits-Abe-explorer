@@ -25,6 +25,7 @@
 import os
 import re
 import errno
+import struct
 
 import Chain
 
@@ -53,6 +54,7 @@ CONFIG_DEFAULTS = {
     "keep_scriptsig":     True,
     "import_tx":          [],
     "default_loader":     "default",
+    "hashfile":           ""
 }
 
 WORK_BITS = 304  # XXX more than necessary.
@@ -123,6 +125,21 @@ class DataStore(object):
     """
 
     def __init__(store, args):
+
+        # Open blockhash file for editing
+        if args.hashfile == "":
+            raise Exception("Please set the hashfile config argument to the file of the valid hashes")
+
+        store.hashfile = open(args.hashfile, "r+b")
+
+        num_hash_bytes = store.hashfile.read(4)
+
+        if num_hash_bytes == "":
+            store.numhashes = 0
+            store.hashfile.write(struct.pack(">I", 0))
+        else:
+            store.numhashes, = struct.unpack(">I", num_hash_bytes)
+
         """
         Open and store a connection to the SQL database.
 
@@ -219,6 +236,8 @@ class DataStore(object):
         if store.in_transaction:
             store.commit()
 
+    def __del__(store):
+        store.hashfile.close()
 
     def init_conn(store):
         store.conn = store.connect()
@@ -2488,7 +2507,8 @@ store._ddl['txout_approx'],
                 for block_id in to_disconnect:
                     store.disconnect_block(block_id, chain_id)
                 for block_id in to_connect:
-                    store.connect_block(block_id, chain_id)
+                    if block_id != b['block_id']: # to prevent duplicate connect_block
+                        store.connect_block(block_id, chain_id)
 
             elif b['hashPrev'] == GENESIS_HASH_PREV:
                 in_longest = 1  # Assume only one genesis block per chain.  XXX
@@ -2506,6 +2526,7 @@ store._ddl['txout_approx'],
                 UPDATE chain
                    SET chain_last_block_id = ?
                  WHERE chain_id = ?""", (top['block_id'], chain_id))
+            store.add_block_hash_to_file(b['hash'], b['height'])
 
         if store.use_firstbits and b['height'] is not None:
             (addr_vers,) = store.selectrow("""
@@ -2581,7 +2602,47 @@ store._ddl['txout_approx'],
             "SELECT prev_block_id FROM block WHERE block_id = ?",
             (block_id,))[0]
 
+    def change_num_hashes(store, amount):
+        # Use exact amount to prevent any bugs involving multiple block connections or disconnections
+        store.numhashes = amount
+        store.hashfile.seek(0)
+        store.hashfile.write(struct.pack(">I", store.numhashes))
+
+    def add_block_hash_to_file(store, block_hash, height):
+        store.hashfile.seek(4 + 16*height)
+        store.hashfile.write(block_hash)
+        store.change_num_hashes(height + 1)
+
+    def get_valid_hashes(store, locator):
+        # Loop through hashes and look for one we have, up to 32
+        useheight = 0
+        for x in xrange(min(len(locator)/32, 32)):
+            height = store.selectrow("""
+                SELECT b.block_height
+                FROM block b
+                JOIN chain_candidate cc ON (b.block_id = cc.block_id)
+                WHERE b.block_hash = ? AND cc.in_longest = 1
+            """, (store.hashin(locator[x*32 : x*32 + 32]),))
+
+            if height:
+                useheight = int(height[0])
+                break
+
+        # Provide file data from height
+        store.hashfile.seek(4 + useheight*16)
+        return store.hashfile.read((store.numhashes-useheight)*16)
+
     def disconnect_block(store, block_id, chain_id):
+        # Get block height
+
+        height = store.selectrow("""
+            SELECT block_height
+            FROM block
+            WHERE block_id = ?
+        """, (block_id,))
+        
+        store.change_num_hashes(int(height))
+
         store.sql("""
             UPDATE chain_candidate
                SET in_longest = 0
@@ -2589,6 +2650,16 @@ store._ddl['txout_approx'],
                   (block_id, chain_id))
 
     def connect_block(store, block_id, chain_id):
+        # Get block hash and height
+
+        height, hash = store.selectrow("""
+            SELECT block_height, block_hash 
+            FROM block
+            WHERE block_id = ?
+        """, (block_id,))
+        
+        store.add_block_hash_to_file(store.hashout(hash), int(height))
+
         store.sql("""
             UPDATE chain_candidate
                SET in_longest = 1
