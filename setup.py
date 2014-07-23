@@ -1,16 +1,16 @@
 from distutils.core import setup
 
-execfile("Abe/version.py")
+execfile("Peercoin-Abe/version.py")
 
 setup(
-    name         = "Abe",
+    name         = "Peercoin-Abe",
     version      = __version__,
     requires     = ['Crypto.Hash'],
-    packages     = ["Abe"],
-    package_data = {'Abe': ['htdocs/*']},
+    packages     = ["Peercoin-Abe"],
+    package_data = {'Peercoin-Abe': ['htdocs/*']},
     author       = "John Tobey",
     author_email = "jtobey@john-edwin-tobey.org",
-    url          = "https://github.com/bitcoin-abe/bitcoin-abe",
+    url          = "https://github.com/MatthewLM/peercoinj",
     classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',

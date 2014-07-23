@@ -10,19 +10,39 @@ th{
 section#main{
     width: 100%;
 }
+#peercoinexplorerinfo{
+	width: 380px;
+	display: block;
+	margin: 50px auto 20px auto;
+}
+#links{
+    position: absolute;
+    right: 40px;
+    top: 36px;
+}
+#links a{
+    display: block;
+    padding: 5px;
+}
 #footer{
     text-align: center;
     height: 60px;
     clear: both;
+    padding: 10px;
+}
+#search .module_content{
+	margin: 0;
+	margin-bottom: 1px;
 }
 #searchBar{
-    width: 90%;
-    left: 5%;
-    margin-left: -6px;
-    position: relative;
-    height: 18px;
-    border-radius: 10px;
+    width: calc(100% - 10px);
+    height: 35px;
     padding-left: 10px;
+    border: none;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+    font-weight: bold;
+    background-color: #FFF;
 }
 #nav{
     position: relative;
@@ -40,7 +60,7 @@ section#main{
     left: calc(50% - 100px);
 }
 #navP1, #navP3{
-    width: 40px;
+    width: 60px;
 }
 #navP3{
     right: 0;

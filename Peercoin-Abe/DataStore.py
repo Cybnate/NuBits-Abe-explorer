@@ -27,6 +27,9 @@ import re
 import errno
 import struct
 
+from dateutil import parser
+import time
+
 import Chain
 
 # bitcointools -- modified deserialize.py to return raw transaction
@@ -2629,13 +2632,21 @@ store._ddl['txout_approx'],
                 break
 
         # Provide file data from height
+
         store.hashfile.seek(4 + useheight*16)
-        return store.hashfile.read((store.numhashes-useheight)*16)
+
+        # Only give maximum of 50000 hashes
+
+        amount = store.numhashes - useheight
+        if amount > 50000:
+            amount = 50000
+
+        return store.hashfile.read(amount*16)
 
     def disconnect_block(store, block_id, chain_id):
         # Get block height
 
-        height = store.selectrow("""
+        height, = store.selectrow("""
             SELECT block_height
             FROM block
             WHERE block_id = ?
@@ -2905,7 +2916,7 @@ store._ddl['txout_approx'],
                         'hashPrev': prev_hash,
                         'hashMerkleRoot':
                             rpc_block['merkleroot'].decode('hex')[::-1],
-                        'nTime':    int(rpc_block['time']),
+                        'nTime':    int(time.mktime(parser.parse(rpc_block['time']).timetuple())),
                         'nBits':    int(rpc_block['bits'], 16),
                         'nNonce':   int(rpc_block['nonce']),
                         'transactions': [],
