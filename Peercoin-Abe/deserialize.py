@@ -78,7 +78,7 @@ def deserialize_TxOut(d, owner_keys=None):
     else: result += " Own: False"
   return result
 
-def parse_Transaction(vds, has_nTime=False):
+def parse_Transaction(vds, has_nTime=False, has_coin=False):
   d = {}
   start_pos = vds.read_cursor
   d['version'] = vds.read_int32()
@@ -93,6 +93,7 @@ def parse_Transaction(vds, has_nTime=False):
   for i in xrange(n_vout):
     d['txOut'].append(parse_TxOut(vds))
   d['lockTime'] = vds.read_uint32()
+  d['coin'] = vds.read_char() if has_coin else None
   d['__data__'] = vds.input[start_pos:vds.read_cursor]
   return d
 

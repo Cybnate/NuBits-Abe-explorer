@@ -71,6 +71,7 @@ class BCDataStream(object):
   def read_uint32 (self): return self._read_num('<I')
   def read_int64  (self): return self._read_num('<q')
   def read_uint64 (self): return self._read_num('<Q')
+  def read_char   (self): return self.read_bytes(1)
 
   def write_boolean(self, val): return self.write(chr(1) if val else chr(0))
   def write_int16  (self, val): return self._write_num('<h', val)

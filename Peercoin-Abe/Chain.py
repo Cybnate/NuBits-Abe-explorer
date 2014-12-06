@@ -27,6 +27,8 @@ def create(policy, **kwargs):
         return Peercoin(**kwargs)
     if policy == "NovaCoin":
         return NovaCoin(**kwargs)
+    if policy == "Nubits":
+        return Nubits(**kwargs)
     return Sha256NmcAuxPowChain(**kwargs)
 
 class Chain(object):
@@ -43,6 +45,8 @@ class Chain(object):
             else:
                 val = None
             setattr(chain, attr, val)
+
+        chain.coin = None
 
     def has_feature(chain, feature):
         return False
@@ -167,5 +171,21 @@ class Peercoin(Sha256Chain, PpcPosChain):
         return feature == 'nvc_proof_of_stake'
 
     datadir_conf_file_name = "ppcoin.conf"
+    datadir_rpcport = 9902
+
+class Nubits(Sha256Chain, PpcPosChain):
+    def __init__(chain, **kwargs):
+        chain.name = 'Nubits'
+        chain.code3 = 'NBT'
+        chain.address_version = "\x19"
+        chain.magic = "\xe6\xe8\xe9\xe5"
+        chain.decimals = 6
+        Chain.__init__(chain, **kwargs)
+        chain.coin = "B"
+
+    def ds_parse_transaction(chain, ds):
+        return deserialize.parse_Transaction(ds, has_nTime=True, has_coin=True)
+
+    datadir_conf_file_name = "nu.conf"
     datadir_rpcport = 9902
 

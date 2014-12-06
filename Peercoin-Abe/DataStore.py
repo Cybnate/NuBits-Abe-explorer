@@ -1785,6 +1785,8 @@ store._ddl['txout_approx'],
         # can avoid a query if we notice this.
         all_txins_linked = True
 
+        num_txs = 0
+
         for pos in xrange(len(b['transactions'])):
             tx = b['transactions'][pos]
 
@@ -1796,15 +1798,28 @@ store._ddl['txout_approx'],
                     tx['hash'] = chain.transaction_hash(tx['__data__'])
 
             tx_hash_array.append(tx['hash'])
+
+            # Ignore NuShares transactions
+            if tx['coin'] is not chain.coin:
+                continue
+
+            num_txs += 1
+
             tx['tx_id'] = store.tx_find_id_and_value(tx, pos == 0)
 
             if tx['tx_id']:
                 all_txins_linked = False
             else:
+
+                # Nubits can have two coinbases. Would have been nice if someone explained this.
+                
+                coinbaseIn = tx['txIn'][0]
+                is_coinbase = coinbaseIn['sequence'] == 0xffffffff and coinbaseIn['prevout_hash'] == NULL_HASH
+
                 if store.commit_bytes == 0:
-                    tx['tx_id'] = store.import_and_commit_tx(tx, pos == 0)
+                    tx['tx_id'] = store.import_and_commit_tx(tx, is_coinbase, chain)
                 else:
-                    tx['tx_id'] = store.import_tx(tx, pos == 0)
+                    tx['tx_id'] = store.import_tx(tx, is_coinbase, chain)
                 if tx.get('unlinked_count', 1) > 0:
                     all_txins_linked = False
 
@@ -1882,7 +1897,7 @@ store._ddl['txout_approx'],
                  store.intin(b['value_in']), store.intin(b['value_out']),
                  store.intin(b['satoshis']), store.intin(b['seconds']),
                  store.intin(b['total_ss']),
-                 len(b['transactions']), b['search_block_id']))
+                 num_txs, b['search_block_id']))
 
         except store.module.DatabaseError:
 
@@ -1911,7 +1926,13 @@ store._ddl['txout_approx'],
 
         # List the block's transactions in block_tx.
         for tx_pos in xrange(len(b['transactions'])):
+
             tx = b['transactions'][tx_pos]
+
+            # Ignore NuShares transactions
+            if tx['coin'] is not chain.coin:
+                continue
+
             store.sql("""
                 INSERT INTO block_tx
                     (block_id, tx_id, tx_pos)
@@ -1925,7 +1946,7 @@ store._ddl['txout_approx'],
             if all_txins_linked or not store._has_unlinked_txins(block_id):
                 b['ss_destroyed'] = store._get_block_ss_destroyed(
                     block_id, b['nTime'],
-                    map(lambda tx: tx['tx_id'], b['transactions']))
+                    [tx['tx_id'] for tx in b['transactions'] if tx['coin'] is chain.coin])
                 if ss_created is None or prev_ss is None:
                     b['ss'] = None
                 else:
@@ -2237,7 +2258,12 @@ store._ddl['txout_approx'],
 
         return None
 
-    def import_tx(store, tx, is_coinbase):
+    def import_tx(store, tx, is_coinbase, chain):
+
+        # Ignore transactions of wrong coins
+        if tx['coin'] is not chain.coin:
+            return
+
         tx_id = store.new_id("tx")
         dbhash = store.hashin(tx['hash'])
 
@@ -2322,9 +2348,9 @@ store._ddl['txout_approx'],
         # requires them.
         return tx_id
 
-    def import_and_commit_tx(store, tx, is_coinbase):
+    def import_and_commit_tx(store, tx, is_coinbase, chain):
         try:
-            tx_id = store.import_tx(tx, is_coinbase)
+            tx_id = store.import_tx(tx, is_coinbase, chain)
             store.commit()
 
         except store.module.DatabaseError:
@@ -2351,7 +2377,7 @@ store._ddl['txout_approx'],
         if count == 0:
             tx = chain.parse_transaction(binary_tx)
             tx['hash'] = tx_hash
-            store.import_tx(tx, util.is_coinbase_tx(tx))
+            store.import_tx(tx, util.is_coinbase_tx(tx), chain)
             store.imported_bytes(tx['size'])
 
     def export_tx(store, tx_id=None, tx_hash=None, decimals=8, format="api"):
@@ -2929,12 +2955,13 @@ store._ddl['txout_approx'],
                         raise InvalidBlock('block hash mismatch')
 
                     for rpc_tx_hash in rpc_block['tx']:
-                        tx = store.export_tx(tx_hash = str(rpc_tx_hash),
-                                             format = "binary")
+                        tx = store.export_tx(tx_hash = str(rpc_tx_hash), format = "binary")
                         if tx is None:
                             tx = get_tx(rpc_tx_hash)
                             if tx is None:
                                 return False
+                        else:
+                            tx['coin'] = chain.coin
 
                         block['transactions'].append(tx)
 
@@ -2953,7 +2980,7 @@ store._ddl['txout_approx'],
                 # XXX Race condition in low isolation levels.
                 tx_id = store.tx_find_id_and_value(tx, False)
                 if tx_id is None:
-                    tx_id = store.import_tx(tx, False)
+                    tx_id = store.import_tx(tx, False, chain)
                     store.log.info("mempool tx %d", tx_id)
                     store.imported_bytes(tx['size'])
 

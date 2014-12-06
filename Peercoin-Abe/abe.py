@@ -39,16 +39,13 @@ import base58
 
 __version__ = version.__version__
 
-ABE_APPNAME = "PPC Abe"
+ABE_APPNAME = "NBT Abe"
 ABE_VERSION = __version__
-ABE_URL = 'https://github.com/MatthewLM/PeercoinAbeExplorer'
+ABE_URL = 'https://github.com/Cybnate/NuBits-Abe-explorer'
 
 COPYRIGHT_YEARS = '2011'
 COPYRIGHT = "Abe developers"
 COPYRIGHT_URL = 'https://github.com/bitcoin-abe'
-
-DONATIONS_BTC = '1KXgUvqsXgcJFrZDGjogpVDkqoiTj3EpTF'
-DONATIONS_PPC = 'PPfGPJ7LDyJnP81vqLAdsZsdp7engHYxix'
 
 TIME1970 = time.strptime('1970-01-01','%Y-%m-%d')
 EPOCH1970 = calendar.timegm(TIME1970)
@@ -64,14 +61,14 @@ DEFAULT_TEMPLATE = """
 <head>
     <link rel="stylesheet" type="text/css" href="%(dotdot)s%(STATIC_PATH)slayout.css" />
     <link rel="stylesheet" type="text/css" href="%(dotdot)s%(STATIC_PATH)sabe.css" />
-    <link rel="shortcut icon" href="%(dotdot)s%(STATIC_PATH)sfavicon.ico" />
+    <link rel="shortcut icon" href="%(dotdot)s%(STATIC_PATH)sfavicon.ico?newicon" />
     %(extraHead)s
     <title>%(title)s</title>
 </head>
 <body>
     <section id="main">
-    <a href="http://peercoinexplorer.info" title="Go back to the peercoinexplorer.info home">
-        <img id="peercoinexplorerinfo" alt="Go back to the peercoinexplorer.info home" src="%(dotdot)s%(STATIC_PATH)speercoin_explorer_info.png" />
+    <a href="http://nubitsexplorer.nu" title="Go back to the nubitsexplorer.nu home">
+        <img id="nubitsexplorernu" alt="Go back to the nubitsexplorer.nu home" src="%(dotdot)s%(STATIC_PATH)snubits_explorer_info.png" />
     </a>
     %(body)s
         <div id="footer">
@@ -81,9 +78,6 @@ DEFAULT_TEMPLATE = """
                     Powered by <a href="%(ABE_URL)s">%(APPNAME)s</a>
                 </span>
                 %(download)s
-                Tips appreciated!
-                <a href="http://peercoinexplorer.info/address/%(DONATIONS_PPC)s">PPC</a> 
-                <a href="http://blockchain.info/address/%(DONATIONS_BTC)s">BTC</a>
             </p>
         </div>
     </section>
@@ -657,10 +651,9 @@ class Abe:
                     "pubkey_hash": pubkey_hash,
                     })
 
-        generated = block_out - block_in
-        coinbase_tx = txs[tx_ids[0]]
-        coinbase_tx['fees'] = 0
-        block_fees = coinbase_tx['total_out'] - generated
+        got_txs = len(tx_ids) == 0
+
+        block_fees = 0
 
         # Proof-of-stake display based loosely on CryptoManiac/novacoin and
         # http://nvc.cryptocoinexplorer.com.
@@ -668,9 +661,15 @@ class Abe:
         is_proof_of_stake = is_stake_chain and \
             len(tx_ids) > 1 and coinbase_tx['total_out'] == 0
 
-        for tx_id in tx_ids[1:]:
+        for tx_id in tx_ids:
             tx = txs[tx_id]
-            tx['fees'] = tx['total_in'] - tx['total_out']
+            total_in = tx['total_in']
+            total_out = tx['total_out']
+            if total_in < total_out:
+                tx['fees'] = 0
+            else:
+                tx['fees'] = total_in - total_out
+            block_fees += tx['fees']
 
         if is_proof_of_stake:
             posgen = -txs[tx_ids[1]]['fees']
@@ -685,12 +684,9 @@ class Abe:
                           escape(chain.name), '?hi=', height, '">',
                           escape(chain.name), '</a> ', height]
 
-        body += ['<article class="module width_3_quarter center3Quart"><header><h3>BLOCK INFORMATION</h3></header><div class="module_content"><strong>']
-        if is_stake_chain:
-            body += [
-                'Proof of Stake' if is_proof_of_stake else 'Proof of Work',
-                ':</strong> ',
-                format_satoshis(generated, chain), ' coins generated<br />\n']
+        generated = block_out - block_in + block_fees
+
+        body += ['<article class="module width_3_quarter center3Quart"><header><h3>BLOCK INFORMATION</h3></header><div class="module_content">']
         body += ['<strong>Hash:</strong> ', block_hash, '<br />\n']
 
         if prev_block_hash is not None:
@@ -715,6 +711,7 @@ class Abe:
             '<strong>Transactions:</strong> ', num_tx, '<br />\n',
             '<strong>Value out:</strong> ', format_satoshis(value_out, chain), '<br />\n',
             '<strong>Transaction Fees:</strong> ', format_satoshis(block_fees, chain), '<br />\n',
+            '<strong>Issued Coins:</strong> ', format_satoshis(generated, chain), '<br />\n',
 
             ['<strong>Average Coin Age:</strong> %6g' % (ss / 86400.0 / satoshis,),
              ' days<br />\n']
@@ -739,6 +736,7 @@ class Abe:
         body += ['<table class="tablesorter" cellspacing="0"><thead><tr><th>Transaction</th><th>Fee</th>'
                  '<th>Size (kB)</th><th>From (amount)</th><th>To (amount)</th>'
                  '</tr></thead>\n']
+
         for tx_id in tx_ids:
             tx = txs[tx_id]
             body += ['<tr><td><a href="../tx/' + tx['hash'] + '">',
@@ -746,30 +744,17 @@ class Abe:
                      '</td><td>', format_satoshis(tx['fees'], chain),
                      '</td><td>', tx['size'] / 1000.0,
                      '</td><td>']
-            if tx is coinbase_tx:
-                body += [
-                    'POS ' if is_proof_of_stake else '',
-                    'Generation: ', format_satoshis(generated, chain), ' + ',
-                    format_satoshis(block_fees, chain), ' total fees']
+            if tx['total_in'] == 0:
+                body += ["New Issuance"]
             else:
                 for txin in tx['in']:
                     body += hash_to_address_link(
                         address_version, txin['pubkey_hash'], page['dotdot'])
                     body += [
-                        ': ', format_satoshis(txin['value'], chain), '<br />']
+                        ': ', format_satoshis(txin['value'], chain)]
+                    body += ['<br />']
             body += ['</td><td>']
             for txout in tx['out']:
-                if is_proof_of_stake:
-                    if tx is coinbase_tx:
-                        assert txout['value'] == 0
-                        assert len(tx['out']) == 1
-                        body += [
-                            format_satoshis(posgen, chain),
-                            ' included in the following transaction']
-                        continue
-                    if txout['value'] == 0:
-                        continue
-
                 body += hash_to_address_link(
                     address_version, txout['pubkey_hash'], page['dotdot'])
                 body += [': ', format_satoshis(txout['value'], chain), '<br />']
@@ -2336,8 +2321,6 @@ def main(argv):
             "COPYRIGHT": COPYRIGHT,
             "COPYRIGHT_YEARS": COPYRIGHT_YEARS,
             "COPYRIGHT_URL": COPYRIGHT_URL,
-            "DONATIONS_BTC": DONATIONS_BTC,
-            "DONATIONS_PPC": DONATIONS_PPC,
             "CONTENT_TYPE": DEFAULT_CONTENT_TYPE,
             "HOMEPAGE": DEFAULT_HOMEPAGE,
             },

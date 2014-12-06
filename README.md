@@ -3,6 +3,7 @@ https://github.com/bitcoin-abe/bitcoin-abe
 
     Copyright(C) 2011,2012,2013 by Abe developers.
     Copyright 2014 by Matthew Mitchell
+    Copyright 2014 by NuBits shareholders
     License: GNU Affero General Public License, see the file LICENSE.txt.
     Portions Copyright (c) 2010 Gavin Andresen, see bct-LICENSE.txt.
 
