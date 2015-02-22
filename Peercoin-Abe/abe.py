@@ -61,7 +61,7 @@ DEFAULT_TEMPLATE = """
 <head>
     <link rel="stylesheet" type="text/css" href="%(dotdot)s%(STATIC_PATH)slayout.css" />
     <link rel="stylesheet" type="text/css" href="%(dotdot)s%(STATIC_PATH)sabe.css" />
-    <link rel="shortcut icon" href="%(dotdot)s%(STATIC_PATH)sfavicon.ico?newicon" />
+    <link rel="shortcut icon" href="%(dotdot)s%(STATIC_PATH)sfavicon.ico?newicon2" />
     %(extraHead)s
     <title>%(title)s</title>
 </head>
