@@ -1805,16 +1805,14 @@ store._ddl['txout_approx'],
 
             num_txs += 1
 
-            tx['tx_id'] = store.tx_find_id_and_value(tx, pos == 0)
+            coinbaseIn = tx['txIn'][0]
+            is_coinbase = coinbaseIn['sequence'] == 0xffffffff and coinbaseIn['prevout_hash'] == NULL_HASH
+
+            tx['tx_id'] = store.tx_find_id_and_value(tx, is_coinbase)
 
             if tx['tx_id']:
                 all_txins_linked = False
             else:
-
-                # Nubits can have two coinbases. Would have been nice if someone explained this.
-                
-                coinbaseIn = tx['txIn'][0]
-                is_coinbase = coinbaseIn['sequence'] == 0xffffffff and coinbaseIn['prevout_hash'] == NULL_HASH
 
                 if store.commit_bytes == 0:
                     tx['tx_id'] = store.import_and_commit_tx(tx, is_coinbase, chain)
