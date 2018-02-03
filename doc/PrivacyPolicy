@@ -1,0 +1,7 @@
+Requested permissions:
+
+* **Camera** allows for scanning QR codes. Immediately after parsing the QR code, the image is deleted from memory.
+* **External storage** to be able to keep wallet backups and restore from backups. No other file types are accessed.
+* **Full network access** enables the app to connect to the NuBits network and fetch auxillary data like exchange rates.
+
+Nubits is decentralized. There is no server that would hold any of your private data.
